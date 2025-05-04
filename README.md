@@ -1,3 +1,5 @@
 # whisprchat
  Modern Voice Communication Platform made in react firebase and...
-![lo](https://github.com/user-attachments/assets/e3449d04-8fcd-4ba3-99d5-b3aa156a81b6)
+![Capture](https://github.com/user-attachments/assets/9d1d3d96-21c0-4a39-b86b-12b7e2b2d749)
+
+ Experience seamless voice conversations with WhisprChat's secure, real-time voice messaging platform. Connect instantly with crystal-clear audio quality
