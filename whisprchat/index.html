@@ -92,7 +92,24 @@
       .accent-brown { background-color: #3d2e20; }
       .text-light { color: #e5d5c6; }
       .font-manrope { font-family: 'Manrope', sans-serif; }
-      
+      @keyframes wave {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+.animate-wave {
+  animation: wave 2s linear infinite;
+}
+  @media (max-width: 640px) {
+    .message-bubble {
+      max-width: 90%;
+      padding: 12px;
+    }
+    
+    .reaction-picker {
+      transform: scale(0.9);
+    }
+  }
     </style>
 </body>
 </html>
