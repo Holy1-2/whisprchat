@@ -3,7 +3,8 @@ import { useAuth } from './AuthContext';
 import { db } from './firebase';
 import { 
   collection, query, where, orderBy, 
-  onSnapshot, addDoc, doc, getDoc, getDocs, deleteDoc ,updateDoc
+  onSnapshot, addDoc, doc, getDoc, getDocs, deleteDoc, updateDoc,
+  arrayUnion, arrayRemove 
 } from 'firebase/firestore';
 import { 
   MicrophoneIcon, PlayIcon, PauseIcon, TrashIcon,
@@ -423,38 +424,37 @@ function MessageBubble({ message, isSender, onDelete, onReply, replyingTo, recip
     const audio = audioRef.current;
     if (!audio) return;
 
+    const handlePlay = () => setPlaying(true);
+    const handlePause = () => setPlaying(false);
+    const handleEnd = () => setPlaying(false);
     const updateProgress = () => setProgress((audio.currentTime / audio.duration) * 100);
-    const handleEnd = () => {
-      setPlaying(false);
-      setProgress(0);
-    };
 
-    audio.addEventListener('timeupdate', updateProgress);
+    audio.addEventListener('play', handlePlay);
+    audio.addEventListener('pause', handlePause);
     audio.addEventListener('ended', handleEnd);
-    audio.onloadedmetadata = () => setDuration(audio.duration);
+    audio.addEventListener('timeupdate', updateProgress);
 
     return () => {
-      audio.removeEventListener('timeupdate', updateProgress);
+      audio.removeEventListener('play', handlePlay);
+      audio.removeEventListener('pause', handlePause);
       audio.removeEventListener('ended', handleEnd);
+      audio.removeEventListener('timeupdate', updateProgress);
+      audio.pause();
     };
   }, [message.id]);
 
   const handleReaction = async (emoji) => {
     try {
-      // Ensure we have all required references
-      const messageRef = doc(db, 'chats', message.chatId, 'messages', message.id);
+      if (!message.chatId || !message.id) return;
       
-      // Safely get reactions data
+      const messageRef = doc(db, 'chats', message.chatId, 'messages', message.id);
       const currentReactions = message.reactions || {};
-      const emojiReactions = currentReactions[emoji] || [];
-  
-      if (emojiReactions.includes(currentUser.uid)) {
-        // Remove reaction
+
+      if (currentReactions[emoji]?.includes(currentUser.uid)) {
         await updateDoc(messageRef, {
           [`reactions.${emoji}`]: arrayRemove(currentUser.uid)
         });
       } else {
-        // Add reaction
         await updateDoc(messageRef, {
           [`reactions.${emoji}`]: arrayUnion(currentUser.uid)
         });
@@ -463,6 +463,7 @@ function MessageBubble({ message, isSender, onDelete, onReply, replyingTo, recip
       console.error("Reaction error:", error);
     }
     setShowReactions(false);
+  
   };
   const renderStatusIndicator = () => {
     if (!isSender) return null;
@@ -479,8 +480,8 @@ function MessageBubble({ message, isSender, onDelete, onReply, replyingTo, recip
   };
 
   return (
-    <div className={`flex ${isSender ? 'justify-end' : 'justify-start'}`}>
-      <div className={`p-4 rounded-2xl max-w-[75%] relative ${
+    <div className={`flex ${isSender ? 'justify-end' : 'justify-start'} px-2 md:px-4`}>
+      <div className={`p-3 md:p-4 rounded-2xl max-w-[90%] md:max-w-[75%] relative ${
         isSender ? 'bg-[#3d2e20]' : 'bg-[#2b2118]'
       }`}>
         {/* Reply Preview */}
@@ -512,13 +513,12 @@ function MessageBubble({ message, isSender, onDelete, onReply, replyingTo, recip
 
         {/* Message Content */}
         <div onClick={() => setShowReactions(!showReactions)}>
-          {/* Hidden audio element */}
           <audio ref={audioRef} src={message.audioUrl} preload="metadata" />
 
-          <div className="flex items-center gap-4">
-            {/* Progress Visualization */}
-            <div className="flex-1">
-              <div className="w-32 h-6 rounded-lg overflow-hidden bg-[#ffffff20]">
+          <div className="flex items-center gap-2 md:gap-4">
+            {/* Responsive progress visualization */}
+            <div className="flex-1 min-w-[100px]">
+              <div className="w-full h-4 md:h-6 rounded-lg overflow-hidden bg-[#ffffff20]">
                 <div
                   className="h-full rounded-lg animate-wave"
                   style={{
@@ -535,26 +535,28 @@ function MessageBubble({ message, isSender, onDelete, onReply, replyingTo, recip
             <button 
               onClick={(e) => {
                 e.stopPropagation();
-                togglePlayback();
+                if (audioRef.current) {
+                  playing ? audioRef.current.pause() : audioRef.current.play();
+                }
               }}
               className="text-[#e5d5c6] hover:text-[#6CFFCA] transition-colors"
             >
               {playing ? (
-                <PauseIcon className="h-6 w-6" />
+                <PauseIcon className="h-5 w-5 md:h-6 md:w-6" />
               ) : (
-                <PlayIcon className="h-6 w-6" />
+                <PlayIcon className="h-5 w-5 md:h-6 md:w-6" />
               )}
             </button>
 
             {/* Timeline */}
-            <div className="flex-1">
+            <div className="flex-1 min-w-[80px]">
               <div className="relative h-1 bg-[#ffffff20] rounded-full">
                 <div 
                   className="absolute h-full bg-[#6CFFCA] rounded-full transition-all"
                   style={{ width: `${progress}%` }}
                 />
               </div>
-              <div className="flex items-center justify-between mt-2">
+              <div className="flex items-center justify-between mt-1 md:mt-2">
                 <span className="text-xs text-[#e5d5c6] opacity-75">
                   {Math.floor(duration || 0)}s •{' '}
                   {message.timestamp?.toLocaleTimeString([], { 
@@ -567,12 +569,12 @@ function MessageBubble({ message, isSender, onDelete, onReply, replyingTo, recip
             </div>
           </div>
 
-          {/* Reactions */}
-          <div className="flex flex-wrap gap-2 mt-2">
+          {/* Responsive reactions */}
+          <div className="flex flex-wrap gap-1 md:gap-2 mt-1 md:mt-2">
             {Object.entries(message.reactions || {}).map(([emoji, users]) => (
               <div 
                 key={emoji}
-                className="flex items-center px-2 py-1 bg-[#1a120b] rounded-full border border-[#3d2e20]"
+                className="flex items-center px-2 py-0.5 bg-[#1a120b] rounded-full border border-[#3d2e20]"
               >
                 <span className="text-sm">{emoji}</span>
                 <span className="text-xs ml-1 text-[#e5d5c6]">
@@ -583,21 +585,21 @@ function MessageBubble({ message, isSender, onDelete, onReply, replyingTo, recip
           </div>
         </div>
 
-        {/* Message Actions */}
-        <div className="absolute -right-2 -top-2 flex gap-2 opacity-0 hover:opacity-100 transition-opacity">
+        {/* Responsive message actions */}
+        <div className="absolute -right-1 -top-1 md:-right-2 md:-top-2 flex gap-1 opacity-0 hover:opacity-100 transition-opacity">
           {isSender && (
             <button 
               onClick={() => onDelete(message.id)}
               className="p-1 bg-red-500 rounded-full hover:bg-red-600"
             >
-              <TrashIcon className="w-4 h-4 text-white" />
+              <TrashIcon className="w-3 h-3 md:w-4 md:h-4 text-white" />
             </button>
           )}
           <button 
             onClick={() => onReply(message)}
             className="p-1 bg-[#6CFFCA] rounded-full hover:bg-[#5ae0b5]"
           >
-            <ArrowUturnLeftIcon className="w-4 h-4 text-[#1a120b]" />
+            <ArrowUturnLeftIcon className="w-3 h-3 md:w-4 md:h-4 text-[#1a120b]" />
           </button>
         </div>
       </div>
